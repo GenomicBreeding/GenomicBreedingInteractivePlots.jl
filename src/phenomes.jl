@@ -1,29 +1,33 @@
-"""
-    plotinteractive2d(
-        phenomes::Phenomes; 
-        idx_entries::Union{Nothing, Vector{Int64}} = nothing,
-        idx_traits::Union{Nothing, Vector{Int64}} = nothing,
-        ditch_some_entries_to_keep_all_traits::Bool = true,
-    )::Figure
+function removesparsestroworcol(
+    df_phenomes::DataFrame;
+    prioritise_entries::Bool = true,
+)::DataFrame
+    S = .!Matrix(.!ismissing.(df_phenomes[:, 4:end]) .&& .!isnan.(df_phenomes[:, 4:end]) .&& .!isinf.(df_phenomes[:, 4:end]))
+    # Remove sparsest row (entry) or column (trait)
+    df_out = if prioritise_entries
+        sparsity_rows = mean(S, dims=2)[:, 1]
+        if maximum(sparsity_rows) == 0.0
+            df_phenomes
+        else
+            df_phenomes[sparsity_rows .< maximum(sparsity_rows), :]
+        end
+    else
+        sparsity_cols = mean(S, dims=1)[1, :]
+        if maximum(sparsity_cols) == 0.0
+            df_phenomes
+        else
+            df_phenomes[:, sparsity_cols .< maximum(sparsity_cols)]
+        end
+    end
+    df_out
+end
 
-Interactive biplot with histogram and correlation heatmap
 
-# Examples
-```julia
-phenomes = Phenomes(n = 100, t = 3)
-phenomes.entries = string.("entry_", 1:100)
-phenomes.populations = StatsBase.sample(string.("pop_", 1:5), 100, replace = true)
-phenomes.traits = ["trait_1", "trait_2", "long_trait_name number 3"]
-phenomes.phenotypes = rand(Distributions.MvNormal([1, 2, 3], LinearAlgebra.I), 100)'
-phenomes.phenotypes[1, 1] = missing
-f = plotinteractive2d(phenomes)
-```
-"""
 function plotinteractive2d(
     phenomes::Phenomes;
     idx_entries::Union{Nothing,Vector{Int64}} = nothing,
     idx_traits::Union{Nothing,Vector{Int64}} = nothing,
-    ditch_some_entries_to_keep_all_traits::Bool = true,
+    prioritise_entries::Bool = true,
 )::Figure
     # phenomes = Phenomes(n = 100, t = 3)
     # phenomes.entries = string.("entry_", 1:100)
@@ -31,13 +35,13 @@ function plotinteractive2d(
     # phenomes.traits = ["trait_1", "trait_2", "long_trait_name number 3"]
     # phenomes.phenotypes = rand(Distributions.MvNormal([1, 2, 3], LinearAlgebra.I), 100)'
     # phenomes.phenotypes[1, 1] = missing
-    # idx_entries = nothing; idx_traits = nothing; ditch_some_entries_to_keep_all_traits = true
+    # idx_entries = nothing; idx_traits = nothing; prioritise_entries = true
     # Check arguments
     if !checkdims(phenomes)
         throw(ArgumentError("The phenomes struct is corrupted."))
     end
-    if isnothing(idx_entries)
-        idx_entries = collect(1:length(phenomes.entries))
+    idx_entries = if isnothing(idx_entries)
+        collect(1:length(phenomes.entries))
     else
         if (minimum(idx_entries) < 1) .|| maximum(idx_entries) > length(phenomes.entries)
             throw(
@@ -52,9 +56,10 @@ function plotinteractive2d(
                 ),
             )
         end
+        idx_entries
     end
-    if isnothing(idx_traits)
-        idx_traits = collect(1:length(phenomes.traits))
+    idx_traits = if isnothing(idx_traits)
+        collect(1:length(phenomes.traits))
     else
         if (minimum(idx_traits) < 1) .|| maximum(idx_traits) > length(phenomes.traits)
             throw(
@@ -69,27 +74,35 @@ function plotinteractive2d(
                 ),
             )
         end
+        idx_traits
     end
     # Extract phenotypes and tabularise
-    phenomes = slice(phenomes, idx_entries = idx_entries, idx_traits = idx_traits)
+    phenomes = if (length(idx_entries) < length(phenomes.entries)) && (length(idx_traits) < length(phenomes.traits))
+        slice(phenomes, idx_entries = idx_entries, idx_traits = idx_traits)
+    else
+        phenomes
+    end
     df = tabularise(phenomes)
     traits = sort(unique(phenomes.traits))
     populations = sort(unique(phenomes.populations))
+    for population in populations
+        if sum(df.populations .== population) < 2
+            throw(ArgumentError("Population $population has less than 2 entries."))
+        end
+    end
 
-    if length(populations) >= (0.9 * length(phenomes.populations))
-        @warn "You seem to have very small populations. This may lead to errors in plotting as we need at least 2 entries per population."
+    n::Int64 = nrow(df)
+    threshold_n = Int(floor(0.5*n))
+
+    while (nrow(df) < n) || (nrow(df) <= threshold_n)
+        n = nrow(df)
+        df = removesparsestroworcol(df, prioritise_entries = prioritise_entries)
     end
 
 
 
-    # Maximise data
-    S = Matrix(.!ismissing.(df[:, 4:end]) .&& .!isnan.(df[:, 4:end]) .&& .!isinf.(df[:, 4:end]))
-    sparsity_cols = mean(S, dims=1)[1, :]
-    sparsity_rows = mean(S, dims=2)[:, 1]
-
-
     # Remove entries with at least 1 missing/NaN/Inf trait or remove trait/s with missing/NaN/Inf to keep all traits
-    idx_rows, idx_cols = if ditch_some_entries_to_keep_all_traits
+    idx_rows, idx_cols = if prioritise_entries
         idx_rows = findall(
             mean(Matrix(.!ismissing.(df[:, 4:end]) .&& .!isnan.(df[:, 4:end]) .&& .!isinf.(df[:, 4:end])), dims = 2)[
                 :,
@@ -101,7 +114,7 @@ function plotinteractive2d(
             throw(
                 ArgumentError(
                     "All entries have at least 1 missing trait value. Please consider:" * 
-                    "\n\t(1) setting `ditch_some_entries_to_keep_all_traits` to `false`," *
+                    "\n\t(1) setting `prioritise_entries` to `false`," *
                     "\n\t(2) slicing the trial to include at least one non-sparse harvest, or" *
                     "\n\t(3) imputing missing phenotypes.",
                 ),
@@ -120,7 +133,7 @@ function plotinteractive2d(
             throw(
                 ArgumentError(
                     "All traits have at least 1 entry with missing data. Please consider:" * 
-                    "\n\t(1) setting `ditch_some_entries_to_keep_all_traits` to `true`," *
+                    "\n\t(1) setting `prioritise_entries` to `true`," *
                     "\n\t(2) slicing the trial to include at least one non-sparse harvest, or" *
                     "\n\t(3) imputing missing phenotypes.",
                 ),
