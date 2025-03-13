@@ -1,41 +1,45 @@
-function removesparsestroworcol(
-    df_phenomes::DataFrame;
-    prioritise_entries::Bool = true,
-)::DataFrame
-    S = .!Matrix(.!ismissing.(df_phenomes[:, 4:end]) .&& .!isnan.(df_phenomes[:, 4:end]) .&& .!isinf.(df_phenomes[:, 4:end]))
+function sparsity(df_phenomes::DataFrame)::Matrix{Float64}
+    .!Matrix(
+        .!ismissing.(df_phenomes[:, 4:end]) .&& 
+        .!isnan.(df_phenomes[:, 4:end]) .&& 
+        .!isinf.(df_phenomes[:, 4:end]),
+    )
+end
+
+function removesparsestroworcol(df_phenomes::DataFrame; prioritise_entries::Bool = true)::DataFrame
+    S = sparsity(df_phenomes)
     # Remove sparsest row (entry) or column (trait)
     df_out = if prioritise_entries
-        sparsity_rows = mean(S, dims=2)[:, 1]
+        sparsity_rows = mean(S, dims = 2)[:, 1]
         if maximum(sparsity_rows) == 0.0
             df_phenomes
         else
-            df_phenomes[sparsity_rows .< maximum(sparsity_rows), :]
+            df_phenomes[sparsity_rows.<maximum(sparsity_rows), :]
         end
     else
-        sparsity_cols = mean(S, dims=1)[1, :]
+        sparsity_cols = mean(S, dims = 1)[1, :]
         if maximum(sparsity_cols) == 0.0
             df_phenomes
         else
-            df_phenomes[:, sparsity_cols .< maximum(sparsity_cols)]
+            df_phenomes[:, sparsity_cols.<maximum(sparsity_cols)]
         end
     end
     df_out
 end
 
-
-function plotinteractive2d(
-    phenomes::Phenomes;
+function loadphenomesdata(phenomes::Phenomes;
     idx_entries::Union{Nothing,Vector{Int64}} = nothing,
     idx_traits::Union{Nothing,Vector{Int64}} = nothing,
-    prioritise_entries::Bool = true,
-)::Figure
+    threshold_n::Union{Nothing,Int64} = nothing,
+    threshold_t::Union{Nothing,Int64} = nothing,
+)::Tuple{DataFrame, Vector{String}, Vector{String}, Int64, Int64}
     # phenomes = Phenomes(n = 100, t = 3)
     # phenomes.entries = string.("entry_", 1:100)
     # phenomes.populations = StatsBase.sample(string.("pop_", 1:5), 100, replace = true)
     # phenomes.traits = ["trait_1", "trait_2", "long_trait_name number 3"]
     # phenomes.phenotypes = rand(Distributions.MvNormal([1, 2, 3], LinearAlgebra.I), 100)'
     # phenomes.phenotypes[1, 1] = missing
-    # idx_entries = nothing; idx_traits = nothing; prioritise_entries = true
+    # idx_entries = nothing; idx_traits = nothing; threshold_n = nothing; threshold_t = nothing
     # Check arguments
     if !checkdims(phenomes)
         throw(ArgumentError("The phenomes struct is corrupted."))
@@ -82,6 +86,42 @@ function plotinteractive2d(
     else
         phenomes
     end
+    # Define the minimum number of entries and traits to retain
+    threshold_n = if isnothing(threshold_n)
+        # Default is 50% of the entries
+        Int64(floor(length(phenomes.entries)*0.5))
+    else
+        if (threshold_n < 1) || (threshold_n > length(phenomes.entries))
+            throw(
+                ArgumentError(
+                    "The threshold for the number of entries, `threshold_n` is out of bounds. Expected range: from 1 to " *
+                    string(length(phenomes.entries)) *
+                    " while the supplied value is " *
+                    string(threshold_n) *
+                    ".",
+                ),
+            )
+        end
+        threshold_n
+    end
+    threshold_t = if isnothing(threshold_t)
+        # Default is 50% of the traits or 1
+        length(phenomes.traits) == 1 ? 1 : Int64(floor(length(phenomes.traits)*0.5))
+    else
+        if (threshold_t < 1) || (threshold_t > length(phenomes.traits))
+            throw(
+                ArgumentError(
+                    "The threshold for the number of traits, `threshold_t` is out of bounds. Expected range: from 1 to " *
+                    string(length(phenomes.traits)) *
+                    " while the supplied value is " *
+                    string(threshold_t) *
+                    ".",
+                ),
+            )
+        end
+        threshold_t
+    end
+    # Tabularise the phenomes
     df = tabularise(phenomes)
     traits = sort(unique(phenomes.traits))
     populations = sort(unique(phenomes.populations))
@@ -90,69 +130,23 @@ function plotinteractive2d(
             throw(ArgumentError("Population $population has less than 2 entries."))
         end
     end
+    # Output
+    (
+        df,
+        traits,
+        populations,
+        threshold_n,
+        threshold_t,
+    )
 
-    n::Int64 = nrow(df)
-    threshold_n = Int(floor(0.5*n))
+end
 
-    while (nrow(df) < n) || (nrow(df) <= threshold_n)
-        n = nrow(df)
-        df = removesparsestroworcol(df, prioritise_entries = prioritise_entries)
-    end
-
-
-
-    # Remove entries with at least 1 missing/NaN/Inf trait or remove trait/s with missing/NaN/Inf to keep all traits
-    idx_rows, idx_cols = if prioritise_entries
-        idx_rows = findall(
-            mean(Matrix(.!ismissing.(df[:, 4:end]) .&& .!isnan.(df[:, 4:end]) .&& .!isinf.(df[:, 4:end])), dims = 2)[
-                :,
-                1,
-            ] .== 1,
-        )
-        idx_cols = collect(1:size(df, 2))
-        if length(idx_rows) == 0
-            throw(
-                ArgumentError(
-                    "All entries have at least 1 missing trait value. Please consider:" * 
-                    "\n\t(1) setting `prioritise_entries` to `false`," *
-                    "\n\t(2) slicing the trial to include at least one non-sparse harvest, or" *
-                    "\n\t(3) imputing missing phenotypes.",
-                ),
-            )
-        end
-        idx_rows, idx_cols
-    else
-        idx_rows = collect(1:size(df, 1))
-        idx_cols = findall(
-            mean(Matrix(.!ismissing.(df[:, 4:end]) .&& .!isnan.(df[:, 4:end]) .&& .!isinf.(df[:, 4:end])), dims = 1)[
-                1,
-                :,
-            ] .== 1,
-        )
-        if length(idx_cols) == 0
-            throw(
-                ArgumentError(
-                    "All traits have at least 1 entry with missing data. Please consider:" * 
-                    "\n\t(1) setting `prioritise_entries` to `true`," *
-                    "\n\t(2) slicing the trial to include at least one non-sparse harvest, or" *
-                    "\n\t(3) imputing missing phenotypes.",
-                ),
-            )
-        end
-        idx_rows, idx_cols
-    end
-    df = df[idx_rows, idx_cols]
-
-
-
-
-
-
-    # Extract the first 2 principal components
+function addpc1pc2(df_phenomes::DataFrame)::DataFrame
     traits = names(df)[4:end]
     t = length(traits)
     if t <= 2
-        throw(ArgumentError("No need to do PCA as you only have at most 2 traits."))
+        @warn "No need to do PCA as you only have at most 2 traits."
+        return df
     end
     A::Matrix{Float64} = Matrix(df[:, 4:end])
     A = (A .- mean(A, dims = 1)) ./ std(A, dims = 1)
@@ -166,6 +160,89 @@ function plotinteractive2d(
     df.pc2 = deepcopy(vec_missing)
     df[!, :pc1] = M.proj[:, 1]
     df[!, :pc2] = M.proj[:, 2]
+    df
+end
+
+function plotinteractive2d(
+    phenomes::Phenomes;
+    idx_entries::Union{Nothing,Vector{Int64}} = nothing,
+    idx_traits::Union{Nothing,Vector{Int64}} = nothing,
+    threshold_n::Union{Nothing,Int64} = nothing,
+    threshold_t::Union{Nothing,Int64} = nothing,
+    prioritise_entries::Bool = true,
+    impute::Bool = false,
+)::Figure
+    # phenomes = Phenomes(n = 100, t = 3)
+    # phenomes.entries = string.("entry_", 1:100)
+    # phenomes.populations = StatsBase.sample(string.("pop_", 1:5), 100, replace = true)
+    # phenomes.traits = ["trait_1", "trait_2", "long_trait_name number 3"]
+    # phenomes.phenotypes = rand(Distributions.MvNormal([1, 2, 3], LinearAlgebra.I), 100)'
+    # n_missing = 20
+    # phenomes.phenotypes[sample(1:length(phenomes.entries), n_missing, replace=true), sample(1:length(phenomes.traits), n_missing, replace=true)] .= missing
+    # idx_entries = nothing; idx_traits = nothing; threshold_n = nothing; threshold_t = nothing; prioritise_entries = true; impute = true
+    # Load phenomes data, tabularise, extract trait and population identifiers, minimum entry and trait thresholds while checking the arguments
+    df, traits, populations, threshold_n, threshold_t = loadphenomesdata(phenomes, idx_entries = idx_entries, idx_traits = idx_traits)
+    df = if !impute
+        # Remove sparsest rows and columns until n and t become constant which means either:
+        #   - no missing data remains
+        #   - no data remains
+        n = nrow(df)
+        t = ncol(df) - 3
+        for i in 1:maximum([length(phenomes.entries), length(phenomes.traits)])
+            if (i > 1) && (nrow(df) == n) && ((ncol(df) - 3) == t)
+                break
+            end
+            n -=  n - nrow(df)
+            t -=  t - (ncol(df) - 3)
+            df = removesparsestroworcol(df, prioritise_entries = prioritise_entries)
+        end
+        if n == 0
+            throw(ArgumentError("Data is too sparse. No entries have been retained. Consider setting `impute` to true."))
+        end
+        if t == 0
+            throw(ArgumentError("Data is too sparse. No traits have been retained. Consider setting `impute` to true."))
+        end
+        if n < threshold_n
+            throw(ArgumentError("Data is too sparse. Number of entries is less than threshold_n ($n < $threshold_n). Consider setting `impute` to true."))
+        end
+        if t < threshold_t
+            throw(ArgumentError("Data is too sparse. Number of traits is less than threshold_t ($t < $threshold_t). Consider setting `impute` to true."))
+        end
+        df
+    else
+        # Remove sparsest rows and columns until:
+        #   - no missing data remains
+        #   - number of entries is at least threshold_n
+        #   - number of traits is at least threshold_t
+        n = nrow(df)
+        t = ncol(df) - 3
+        for i in 1:maximum([length(phenomes.entries), length(phenomes.traits)])
+            df = if (i > 1) && ((nrow(df) < n) || ((ncol(df) - 3) < t))
+                break
+            else
+                removesparsestroworcol(df, prioritise_entries = prioritise_entries)
+            end
+            n -=  n - nrow(df)
+            t -=  t - (ncol(df) - 3)
+        end
+        # Impute
+        @warn "Imputing missing data via mean value imputation per trait."
+        S = sparsity(df)
+        sparsity_rows = mean(S, dims = 2)[:, 1]
+        sparsity_cols = mean(S, dims = 1)[1, :]
+        UnicodePlots.histogram(sparsity_rows, title = "Sparsity per entry")
+        UnicodePlots.histogram(sparsity_cols, title = "Sparsity per locus-allele")
+        for j in 4:ncol(df)
+            # j = 4
+            y = df[:, j]
+            idx = .!ismissing.(y) .&& .!isnan.(y) .&& .!isinf.(y)
+            μ_y = mean(y[idx])
+            df[.!idx, j] .= μ_y
+        end
+        df
+    end
+    # Extract the first 2 principal components
+    df = addpc1pc2(df)
     # Include the 2 PCs in the list of traits
     traits = names(df)[4:end]
     traits = traits[sortperm(uppercase.(traits))]

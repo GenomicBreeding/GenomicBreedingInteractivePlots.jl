@@ -1,10 +1,12 @@
 using Pkg
 Pkg.activate(".")
 try
-    Pkg.add(url = "https://github.com/GenomicBreeding/GBCore.jl")
+    Pkg.update()
 catch
     nothing
 end
 using GBCore
+using GBPlotsInteractive
 using StatsBase, MultivariateStats, Distributions, LinearAlgebra, DataFrames
+using UnicodePlots
 using GLMakie, ColorSchemes
