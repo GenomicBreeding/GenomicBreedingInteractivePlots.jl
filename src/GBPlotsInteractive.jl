@@ -8,7 +8,8 @@ using GLMakie, ColorSchemes
 
 include("phenomes.jl")
 
-export sparsity, removesparsestroworcol, loadphenomesdata, addpc1pc2
+export sparsity, removesparsestroworcol, loadphenomesdata, filterphenomesdata, addpc1pc2
+export figurelayout, heatmapinteractive!, scatterplotinteractive!
 export plotinteractive2d
 
 end
