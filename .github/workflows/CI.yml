@@ -36,10 +36,8 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-      - run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev xsettingsd x11-xserver-utils
-      # - uses: julia-actions/julia-buildpkg@v1
-      # - uses: julia-actions/julia-runtest@v1
-      - run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project -e 'using Pkg; Pkg.instantiate(); using GBPlotsInteractive; include("test/runtests.jl")'
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
   docs:
     name: Documentation
     runs-on: ubuntu-latest
@@ -53,29 +51,21 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
-      # - name: Configure doc environment
-      #   shell: julia --project=docs --color=yes {0}
-      #   run: |
-      #     using Pkg
-      #     Pkg.develop(PackageSpec(path=pwd()))
-      #     Pkg.instantiate()
-      # - uses: julia-actions/julia-buildpkg@v1
-      # - run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project -e 'using Pkg; Pkg.instantiate()'
-      # - uses: julia-actions/julia-docdeploy@v1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - name: Build and deploy docs
+      - name: Configure doc environment
+        shell: julia --project=docs --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.instantiate()
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-            DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24'
-            julia --color=yes docs/make.jl
-      # - name: Run doctests
-      #   shell: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs --color=yes {0}
-      #   run: |
-      #     using Documenter: DocMeta, doctest
-      #     using GBPlotsInteractive
-      #     DocMeta.setdocmeta!(GBPlotsInteractive, :DocTestSetup, :(using GBPlotsInteractive)
-      #     recursive=true)
-      #     doctest(GBPlotsInteractive)
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      - name: Run doctests
+        shell: julia --project=docs --color=yes {0}
+        run: |
+          using Documenter: DocMeta, doctest
+          using GBPlotsInteractive
+          DocMeta.setdocmeta!(GBPlotsInteractive, :DocTestSetup, :(using GBPlotsInteractive); recursive=true)
+          doctest(GBPlotsInteractive)

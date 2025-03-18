@@ -1,22 +1,22 @@
 using Pkg
 Pkg.add(url = "https://github.com/GenomicBreeding/GBCore.jl")
-Pkg.develop(url = "https://github.com/GenomicBreeding/GBPlots.jl")
+Pkg.develop(url = "https://github.com/GenomicBreeding/GBPlotsInteractive.jl")
 Pkg.add("Documenter")
-using GBPlots
+using GBPlotsInteractive
 using Documenter
 
-DocMeta.setdocmeta!(GBPlots, :DocTestSetup, :(using GBPlots); recursive = true)
+DocMeta.setdocmeta!(GBPlotsInteractive, :DocTestSetup, :(using GBPlotsInteractive); recursive = true)
 
 makedocs(;
-    modules = [GBPlots],
+    modules = [GBPlotsInteractive],
     authors = "jeffersonparil@gmail.com",
-    sitename = "GBPlots.jl",
+    sitename = "GBPlotsInteractive.jl",
     format = Documenter.HTML(;
-        canonical = "https://GenomicBreeding.github.io/GBPlots.jl",
+        canonical = "https://GenomicBreeding.github.io/GBPlotsInteractive.jl",
         edit_link = "main",
         assets = String[],
     ),
     pages = ["Home" => "index.md"],
 )
 
-deploydocs(; repo = "github.com/GenomicBreeding/GBPlots.jl", devbranch = "main")
+deploydocs(; repo = "github.com/GenomicBreeding/GBPlotsInteractive.jl", devbranch = "main")

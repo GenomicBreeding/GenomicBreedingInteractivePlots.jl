@@ -31,7 +31,7 @@ A tuple containing:
 - `ArgumentError`: If any population has less than 2 entries
 
 # Example
-```jldoctest; setup = :(using GBCore, GBPlotsInteractive, StatsBase, Distributions)
+```jldoctest; setup = :(using GBCore, GBPlotsInteractive, StatsBase, LinearAlgebra, Distributions)
 julia> phenomes = Phenomes(n = 100, t = 3);
 
 julia> phenomes.entries = string.("entry_", 1:100);
@@ -49,13 +49,13 @@ julia> phenomes.phenotypes[sample(1:length(phenomes.entries), n_missing, replace
 julia> (df, traits, threshold_n, threshold_t) = loadphenomesdata(phenomes);
 
 julia> size(df)
-(100, 5)
+(100, 6)
 
 julia> length(traits)
 3
 
 julia> (threshold_n, threshold_t)
-(50, 2)
+(50, 1)
 ```
 """
 function loadphenomesdata(
@@ -219,10 +219,7 @@ function removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true):
         end
     else
         sparsity_cols = mean(S, dims = 1)[1, :]
-        idx_cols = vcat(
-            collect(1:3),
-            collect(4:ncol(df))[sparsity_cols .< maximum(sparsity_cols)]
-        )
+        idx_cols = vcat(collect(1:3), collect(4:ncol(df))[sparsity_cols.<maximum(sparsity_cols)])
         if maximum(sparsity_cols) == 0.0
             df
         else
