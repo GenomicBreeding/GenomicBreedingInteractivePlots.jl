@@ -112,7 +112,7 @@ function loadphenomesdata(
         end
         idx_traits
     end
-    # Extract phenotypes and tabularise
+    # Slice phenotypes
     phenomes = if (length(idx_entries) < length(phenomes.entries)) && (length(idx_traits) < length(phenomes.traits))
         slice(phenomes, idx_entries = idx_entries, idx_traits = idx_traits)
     else
