@@ -1,3 +1,63 @@
+"""
+    loadphenomesdata(phenomes::Phenomes; 
+                     idx_entries::Union{Nothing,Vector{Int64}} = nothing,
+                     idx_traits::Union{Nothing,Vector{Int64}} = nothing, 
+                     threshold_n::Union{Nothing,Int64} = nothing,
+                     threshold_t::Union{Nothing,Int64} = nothing
+                    )::Tuple{DataFrame,Vector{String},Int64,Int64}
+
+Load and process phenotypic data from a Phenomes struct into a tabular format.
+
+# Arguments
+- `phenomes::Phenomes`: A Phenomes struct containing phenotypic data
+- `idx_entries::Union{Nothing,Vector{Int64}}=nothing`: Optional vector of indices to select specific entries
+- `idx_traits::Union{Nothing,Vector{Int64}}=nothing`: Optional vector of indices to select specific traits
+- `threshold_n::Union{Nothing,Int64}=nothing`: Minimum number of entries to retain (defaults to 50% of entries)
+- `threshold_t::Union{Nothing,Int64}=nothing`: Minimum number of traits to retain (defaults to 50% of traits or 1)
+
+# Returns
+A tuple containing:
+- `DataFrame`: Tabularized phenotypic data
+- `Vector{String}`: Sorted unique trait names
+- `Int64`: Final threshold value for number of entries
+- `Int64`: Final threshold value for number of traits
+
+# Throws
+- `ArgumentError`: If phenomes struct is corrupted
+- `ArgumentError`: If idx_entries are out of bounds
+- `ArgumentError`: If idx_traits are out of bounds
+- `ArgumentError`: If threshold_n is out of bounds
+- `ArgumentError`: If threshold_t is out of bounds
+- `ArgumentError`: If any population has less than 2 entries
+
+# Example
+```jldoctest; setup = :(using GBCore, GBPlotsInteractive, StatsBase, Distributions)
+julia> phenomes = Phenomes(n = 100, t = 3);
+
+julia> phenomes.entries = string.("entry_", 1:100);
+
+julia> phenomes.populations = StatsBase.sample(string.("pop_", 1:5), 100, replace = true);
+
+julia> phenomes.traits = ["trait_1", "trait_2", "long_trait_name number 3"];
+
+julia> phenomes.phenotypes = rand(Distributions.MvNormal([1, 2, 3], LinearAlgebra.I), 100)';
+
+julia> n_missing = 20;
+
+julia> phenomes.phenotypes[sample(1:length(phenomes.entries), n_missing, replace=true), sample(1:length(phenomes.traits), n_missing, replace=true)] .= missing;
+
+julia> (df, traits, threshold_n, threshold_t) = loadphenomesdata(phenomes);
+
+julia> size(df)
+(100, 5)
+
+julia> length(traits)
+3
+
+julia> (threshold_n, threshold_t)
+(50, 2)
+```
+"""
 function loadphenomesdata(
     phenomes::Phenomes;
     idx_entries::Union{Nothing,Vector{Int64}} = nothing,
@@ -107,10 +167,46 @@ function loadphenomesdata(
 
 end
 
+"""
+    sparsity(df::DataFrame)::Matrix{Float64}
+
+Calculate the sparsity pattern of a DataFrame's numerical columns.
+
+Takes a DataFrame and returns a boolean matrix where:
+- `true` indicates missing, NaN, or infinite values
+- `false` indicates valid numerical values
+
+The function considers only columns from the 4th column onwards.
+
+# Arguments
+- `df::DataFrame`: Input DataFrame to analyze
+
+# Returns
+- `Matrix{Float64}`: A boolean matrix where `true` represents missing/invalid data points
+
+# Examples
+"""
 function sparsity(df::DataFrame)::Matrix{Float64}
     .!Matrix(.!ismissing.(df[:, 4:end]) .&& .!isnan.(df[:, 4:end]) .&& .!isinf.(df[:, 4:end]))
 end
 
+"""
+    removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true)::DataFrame
+
+Remove either the sparsest row or column from a DataFrame based on sparsity values.
+
+# Arguments
+- `df::DataFrame`: Input DataFrame to process
+- `prioritise_entries::Bool = true`: If true, prioritizes removing sparse columns (loci-alleles). If false, prioritizes removing sparse rows (entries).
+
+# Returns
+- `DataFrame`: A new DataFrame with the sparsest row or column removed. If no sparsity is found (all values are 0.0), returns the original DataFrame unchanged.
+
+# Details
+The function calculates sparsity for each row or column (depending on `prioritise_entries`), and removes the one with the highest sparsity value. Sparsity is computed as the mean of sparsity values across the respective dimension.
+
+# Example
+"""
 function removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true)::DataFrame
     S = sparsity(df)
     # Remove sparsest row (entry) or column (trait)
@@ -132,6 +228,41 @@ function removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true):
     df_out
 end
 
+"""
+    filterphenomesdata(df::DataFrame; 
+        threshold_n::Union{Nothing,Int64} = nothing,
+        threshold_t::Union{Nothing,Int64} = nothing,
+        prioritise_entries::Bool = true,
+        impute::Bool = false)::DataFrame
+
+Filter and process phenome data from a DataFrame by handling missing values through either removal or imputation.
+
+# Arguments
+- `df::DataFrame`: Input DataFrame containing phenomes data with entries in rows and traits in columns (from column 4 onwards)
+- `threshold_n::Union{Nothing,Int64}`: Minimum number of entries required in the filtered dataset
+- `threshold_t::Union{Nothing,Int64}`: Minimum number of traits required in the filtered dataset
+- `prioritise_entries::Bool`: If true, prioritizes keeping entries over traits when removing sparse data
+- `impute::Bool`: If true, performs mean value imputation instead of removing sparse data
+
+# Returns
+- `DataFrame`: Filtered and processed DataFrame
+
+# Details
+When `impute=false`:
+- Iteratively removes sparsest rows or columns until no missing data remains or no data is left
+- Throws ArgumentError if resulting data doesn't meet threshold requirements
+
+When `impute=true`:
+- Removes sparsest rows and columns until meeting threshold requirements
+- Performs mean value imputation for remaining missing values
+- Displays histograms of sparsity distribution
+
+# Throws
+- `ArgumentError`: If resulting data is too sparse or doesn't meet threshold requirements when `impute=false`
+
+# Note
+The input DataFrame should have entry information in the first three columns and traits data from column 4 onwards.
+"""
 function filterphenomesdata(
     df::DataFrame;
     threshold_n::Union{Nothing,Int64} = nothing,
@@ -212,6 +343,30 @@ function filterphenomesdata(
     df
 end
 
+"""
+    addpc1pc2(df::DataFrame)::DataFrame
+
+Compute and append the first two principal components (PC1 and PC2) of the phenotype data
+
+This function performs Principal Component Analysis (PCA) on the trait columns of the input DataFrame
+(assumed to start from column 4 onwards). The traits are standardized before PCA is performed.
+
+# Arguments
+- `df::DataFrame`: Input DataFrame with trait columns starting from column 4
+
+# Returns
+- `DataFrame`: Original DataFrame with two additional columns:
+  - `pc1`: First principal component scores
+  - `pc2`: Second principal component scores
+
+# Notes
+- If there are 2 or fewer traits, a warning is issued and the original DataFrame is returned unchanged
+- Traits with no variation are removed before PCA
+- The trait data is standardized (centered and scaled) before PCA
+- Missing, infinite, or NaN values in variance are handled
+
+# Examples
+"""
 function addpc1pc2(df::DataFrame)::DataFrame
     traits = names(df)[4:end]
     t = length(traits)
@@ -234,6 +389,42 @@ function addpc1pc2(df::DataFrame)::DataFrame
     df
 end
 
+"""
+    figurelayout(df::DataFrame; height::Int64=1_200, width::Int64=800, traits::Vector{String})
+    -> Tuple{Figure,GridLayout,Axis,Axis,Axis,Axis,Observable{String},String,String,Menu,Menu,Textbox,Textbox}
+
+Create an interactive figure layout for visualizing trait relationships in a DataFrame.
+
+# Arguments
+- `df::DataFrame`: Input DataFrame containing trait data
+- `height::Int64=1_200`: Height of the figure in pixels
+- `width::Int64=800`: Width of the figure in pixels  
+- `traits::Vector{String}`: Vector of trait names to be visualized
+
+# Returns
+Tuple containing:
+- `Figure`: Main figure object
+- `GridLayout`: Layout for the main scatter plot and histograms
+- `Axis`: Histogram axis for trait 1
+- `Axis`: Scatter plot axis
+- `Axis`: Histogram axis for trait 2  
+- `Axis`: Heatmap axis for trait correlations
+- `Observable{String}`: Observable containing Pearson correlation value
+- `String`: Default trait 1 name
+- `String`: Default trait 2 name
+- `Menu`: Dropdown menu for selecting trait 1
+- `Menu`: Dropdown menu for selecting trait 2
+- `Textbox`: Search box for trait 1
+- `Textbox`: Search box for trait 2
+
+The function creates an interactive visualization layout with:
+- A scatter plot showing relationship between two selected traits
+- Marginal histograms for each trait
+- A heatmap showing correlations between all traits
+- Interactive menus to select traits
+- Search boxes to find traits
+- Display of Pearson correlation between selected traits
+"""
 function figurelayout(
     df::DataFrame;
     height::Int64 = 1_200,
@@ -302,6 +493,25 @@ function figurelayout(
     )
 end
 
+"""
+    heatmapinteractive!(plot_heatmap::Axis; df::DataFrame, traits::Vector{String})
+
+Creates an interactive correlation heatmap for the specified traits using GLMakie.
+
+# Arguments
+- `plot_heatmap::Axis`: The axis object where the heatmap will be plotted
+- `df::DataFrame`: DataFrame containing the data for correlation analysis
+- `traits::Vector{String}`: Vector of trait names to be included in the correlation analysis
+
+# Details
+- Calculates correlation matrix for specified traits from the DataFrame
+- Reverses column order for display purposes
+- Creates interactive heatmap with correlation values ranging from -1 to 1
+- Includes inspector label showing correlation coefficient and trait pairs on hover
+
+# Returns
+Nothing, modifies the plot in-place.
+"""
 function heatmapinteractive!(plot_heatmap::Axis; df::DataFrame, traits::Vector{String})
     C = cor(Matrix(df[!, traits]))
     C = C[:, reverse(collect(1:end))]
@@ -316,6 +526,31 @@ function heatmapinteractive!(plot_heatmap::Axis; df::DataFrame, traits::Vector{S
     )
 end
 
+"""
+    scatterplotinteractive!(X::Observable, Y::Observable, ρ::Observable, plot_scatter::Axis, 
+                           plot_hist_x::Axis, plot_hist_y::Axis; df::DataFrame, traits::Vector{String})
+
+Create an interactive scatter plot with marginal histograms for multiple populations.
+
+# Arguments
+- `X::Observable`: Observable containing x-axis (trait 1) data
+- `Y::Observable`: Observable containing y-axis (trait 2) data
+- `ρ::Observable`: Observable for Pearson's correlation coefficient for `x` and `y` traits to display
+- `plot_scatter::Axis`: Main scatter plot axis
+- `plot_hist_x::Axis`: X-axis marginal histogram axis
+- `plot_hist_y::Axis`: Y-axis marginal histogram axis
+- `df::DataFrame`: DataFrame containing the data with required columns:
+    - `populations`: Population identifiers
+    - `entries`: Entry labels
+- `traits::Vector{String}`: Vector of trait names for formatting
+
+# Details
+Creates a scatter plot with population-specific colours and interactive labels. Includes marginal
+histograms for both x and y dimensions. Updates correlation coefficient dynamically.
+
+# Returns
+Nothing, modifies the input axes in place.
+"""
 function scatterplotinteractive!(
     X::Observable,
     Y::Observable,
@@ -346,6 +581,46 @@ function scatterplotinteractive!(
     connect!(ρ, @lift(rpad(round(cor($X, $Y), digits = 4), 2 * maximum(length.(traits)), " ")))
 end
 
+"""
+    plotinteractive2d(phenomes::Phenomes; 
+        idx_entries::Union{Nothing,Vector{Int64}} = nothing,
+        idx_traits::Union{Nothing,Vector{Int64}} = nothing,
+        threshold_n::Union{Nothing,Int64} = nothing,
+        threshold_t::Union{Nothing,Int64} = nothing,
+        prioritise_entries::Bool = true,
+        impute::Bool = false
+    )::Figure
+
+Creates an interactive 2D visualization of phenotypic data with the following components:
+- A scatter plot of two selected traits
+- Marginal histograms for both traits
+- A correlation heatmap of all traits
+
+# Arguments
+- `phenomes::Phenomes`: A Phenomes object containing the phenotypic data
+- `idx_entries::Union{Nothing,Vector{Int64}}`: Optional indices to subset entries
+- `idx_traits::Union{Nothing,Vector{Int64}}`: Optional indices to subset traits
+- `threshold_n::Union{Nothing,Int64}`: Minimum number of non-missing values per entry
+- `threshold_t::Union{Nothing,Int64}`: Minimum number of non-missing values per trait
+- `prioritise_entries::Bool`: If true, prioritizes keeping entries over traits when filtering
+- `impute::Bool`: If true, performs imputation on missing values
+
+# Returns
+- `Figure`: A Makie figure object containing the interactive visualization
+
+# Features
+- Interactive trait selection via dropdown menus
+- Search functionality for traits
+- Data inspection on hover
+- Automatic correlation calculation
+- Principal component analysis visualization
+- Responsive layout with linked histograms and scatter plot
+
+# Notes
+- Uses GLMakie as the backend
+- Automatically handles missing data through filtering and optional imputation
+- Includes first two principal components in the trait selection options
+"""
 function plotinteractive2d(
     phenomes::Phenomes;
     idx_entries::Union{Nothing,Vector{Int64}} = nothing,
