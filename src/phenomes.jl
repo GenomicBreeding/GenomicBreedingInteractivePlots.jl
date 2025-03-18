@@ -210,7 +210,7 @@ The function calculates sparsity for each row or column (depending on `prioritis
 function removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true)::DataFrame
     S = sparsity(df)
     # Remove sparsest row (entry) or column (trait)
-    df_out = if prioritise_entries
+    df_out = if !prioritise_entries
         sparsity_rows = mean(S, dims = 2)[:, 1]
         if maximum(sparsity_rows) == 0.0
             df
@@ -219,10 +219,14 @@ function removesparsestroworcol(df::DataFrame; prioritise_entries::Bool = true):
         end
     else
         sparsity_cols = mean(S, dims = 1)[1, :]
+        idx_cols = vcat(
+            collect(1:3),
+            collect(4:ncol(df))[sparsity_cols .< maximum(sparsity_cols)]
+        )
         if maximum(sparsity_cols) == 0.0
             df
         else
-            df[:, sparsity_cols.<maximum(sparsity_cols)]
+            df[:, idx_cols]
         end
     end
     df_out
@@ -315,6 +319,7 @@ function filterphenomesdata(
         n = nrow(df)
         t = ncol(df) - 3
         for i = 1:maximum([length(entries), length(traits)])
+            # i = 1
             df = if (i > 1) && ((nrow(df) < n) || ((ncol(df) - 3) < t))
                 break
             else
