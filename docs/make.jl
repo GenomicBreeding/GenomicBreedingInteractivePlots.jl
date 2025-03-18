@@ -1,9 +1,5 @@
-using Pkg
-Pkg.add(url = "https://github.com/GenomicBreeding/GBCore.jl")
-Pkg.develop(url = "https://github.com/GenomicBreeding/GBPlotsInteractive.jl")
-Pkg.add("Documenter")
-using Documenter
 using GBPlotsInteractive
+using Documenter
 
 DocMeta.setdocmeta!(GBPlotsInteractive, :DocTestSetup, :(using GBPlotsInteractive); recursive = true)
 
