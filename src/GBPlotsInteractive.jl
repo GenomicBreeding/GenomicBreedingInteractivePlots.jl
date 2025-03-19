@@ -4,7 +4,6 @@ using GBCore
 using StatsBase, MultivariateStats, Distributions, LinearAlgebra, DataFrames, StatsBase
 using UnicodePlots
 using GLMakie, ColorSchemes
-# using PrecompileTools: @compile_workload
 
 include("phenomes.jl")
 
