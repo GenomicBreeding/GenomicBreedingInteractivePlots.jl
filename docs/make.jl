@@ -8,7 +8,12 @@ Pkg.add("Distributions")
 using Documenter
 using GenomicBreedingInteractivePlots
 
-DocMeta.setdocmeta!(GenomicBreedingInteractivePlots, :DocTestSetup, :(using GenomicBreedingInteractivePlots); recursive = true)
+DocMeta.setdocmeta!(
+    GenomicBreedingInteractivePlots,
+    :DocTestSetup,
+    :(using GenomicBreedingInteractivePlots);
+    recursive = true,
+)
 
 makedocs(;
     modules = [GenomicBreedingInteractivePlots],
