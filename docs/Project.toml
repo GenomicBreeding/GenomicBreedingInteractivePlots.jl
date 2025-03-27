@@ -2,7 +2,7 @@
 ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-GBCore = "50d95318-1838-4cfa-a614-3543b4bb0509"
+GenomicBreedingCore = "50d95318-1838-4cfa-a614-3543b4bb0509"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
@@ -10,4 +10,4 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [sources]
-GBCore = {rev = "main", url = "https://github.com/GenomicBreeding/GBCore.jl"}
+GenomicBreedingCore = {rev = "main", url = "https://github.com/GenomicBreeding/GenomicBreedingCore.jl"}

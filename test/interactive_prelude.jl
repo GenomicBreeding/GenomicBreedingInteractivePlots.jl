@@ -5,8 +5,8 @@ try
 catch
     nothing
 end
-using GBCore
-using GBPlotsInteractive
+using GenomicBreedingCore
+using GenomicBreedingInteractivePlots
 using StatsBase, MultivariateStats, Distributions, LinearAlgebra, DataFrames
 using UnicodePlots
 using GLMakie, ColorSchemes

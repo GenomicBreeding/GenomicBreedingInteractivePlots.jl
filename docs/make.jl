@@ -1,25 +1,25 @@
 using Pkg
-Pkg.add(url = "https://github.com/GenomicBreeding/GBCore.jl")
-Pkg.develop(url = "https://github.com/GenomicBreeding/GBPlotsInteractive.jl")
+Pkg.add(url = "https://github.com/GenomicBreeding/GenomicBreedingCore.jl")
+Pkg.develop(url = "https://github.com/GenomicBreeding/GenomicBreedingInteractivePlots.jl")
 Pkg.add("Documenter")
 Pkg.add("StatsBase")
 Pkg.add("LinearAlgebra")
 Pkg.add("Distributions")
 using Documenter
-using GBPlotsInteractive
+using GenomicBreedingInteractivePlots
 
-DocMeta.setdocmeta!(GBPlotsInteractive, :DocTestSetup, :(using GBPlotsInteractive); recursive = true)
+DocMeta.setdocmeta!(GenomicBreedingInteractivePlots, :DocTestSetup, :(using GenomicBreedingInteractivePlots); recursive = true)
 
 makedocs(;
-    modules = [GBPlotsInteractive],
+    modules = [GenomicBreedingInteractivePlots],
     authors = "jeffersonparil@gmail.com",
-    sitename = "GBPlotsInteractive.jl",
+    sitename = "GenomicBreedingInteractivePlots.jl",
     format = Documenter.HTML(;
-        canonical = "https://GenomicBreeding.github.io/GBPlotsInteractive.jl",
+        canonical = "https://GenomicBreeding.github.io/GenomicBreedingInteractivePlots.jl",
         edit_link = "main",
         assets = String[],
     ),
     pages = ["Home" => "index.md"],
 )
 
-deploydocs(; repo = "github.com/GenomicBreeding/GBPlotsInteractive.jl", devbranch = "main")
+deploydocs(; repo = "github.com/GenomicBreeding/GenomicBreedingInteractivePlots.jl", devbranch = "main")

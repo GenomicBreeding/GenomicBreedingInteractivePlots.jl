@@ -1,6 +1,6 @@
-module GBPlotsInteractive
+module GenomicBreedingInteractivePlots
 
-using GBCore
+using GenomicBreedingCore
 using StatsBase, MultivariateStats, Distributions, LinearAlgebra, DataFrames, StatsBase
 using UnicodePlots
 using GLMakie, ColorSchemes

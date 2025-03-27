@@ -31,7 +31,7 @@ A tuple containing:
 - `ArgumentError`: If any population has less than 2 entries
 
 # Example
-```jldoctest; setup = :(using GBCore, GBPlotsInteractive, StatsBase, LinearAlgebra, Distributions)
+```jldoctest; setup = :(using GenomicBreedingCore, GenomicBreedingInteractivePlots, StatsBase, LinearAlgebra, Distributions)
 julia> phenomes = Phenomes(n = 100, t = 3);
 
 julia> phenomes.entries = string.("entry_", 1:100);

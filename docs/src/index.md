@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = GBPlotsInteractive
+CurrentModule = GenomicBreedingInteractivePlots
 ```
 
-# GBPlotsInteractive
+# GenomicBreedingInteractivePlots
 
-Documentation for [GBPlotsInteractive](https://github.com/GenomicBreeding/GBPlotsInteractive.jl).
+Documentation for [GenomicBreedingInteractivePlots](https://github.com/GenomicBreeding/GenomicBreedingInteractivePlots.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [GBPlotsInteractive]
+Modules = [GenomicBreedingInteractivePlots]
 ```
