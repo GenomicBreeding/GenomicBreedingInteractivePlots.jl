@@ -74,7 +74,7 @@ function loadphenomesdata(
     # idx_entries = nothing; idx_traits = nothing; threshold_n = nothing; threshold_t = nothing
     # Check arguments
     if !checkdims(phenomes)
-        throw(ArgumentError("The phenomes struct is corrupted."))
+        throw(ArgumentError("The phenomes struct is corrupted ☹."))
     end
     idx_entries = if isnothing(idx_entries)
         collect(1:length(phenomes.entries))

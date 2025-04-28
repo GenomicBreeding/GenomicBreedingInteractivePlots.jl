@@ -11,7 +11,7 @@ function loadgenomesdata(
     # idx_entries = nothing; idx_loci_alleles = nothing; threshold_n = nothing; threshold_p = nothing
     # Check arguments
     if !checkdims(genomes)
-        throw(ArgumentError("The genomes struct is corrupted."))
+        throw(ArgumentError("The genomes struct is corrupted ☹."))
     end
     idx_entries = if isnothing(idx_entries)
         collect(1:length(genomes.entries))
