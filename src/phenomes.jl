@@ -358,8 +358,9 @@ This function performs Principal Component Analysis (PCA) on the trait columns o
 
 # Returns
 - `DataFrame`: Original DataFrame with two additional columns:
-  - `pc1`: First principal component scores
-  - `pc2`: Second principal component scores
+  + `pc1`: First principal component scores
+  + `pc2`: Second principal component scores
+- `Matrix`: Loadings of the original traits on the first 2 PC coordinate system
 
 # Notes
 - If there are 2 or fewer traits, a warning is issued and the original DataFrame is returned unchanged
@@ -369,7 +370,7 @@ This function performs Principal Component Analysis (PCA) on the trait columns o
 
 # Examples
 """
-function addpc1pc2(df::DataFrame)::DataFrame
+function addpc1pc2(df::DataFrame)::Tuple{DataFrame, Matrix}
     traits = names(df)[4:end]
     t = length(traits)
     if t <= 2
@@ -382,13 +383,17 @@ function addpc1pc2(df::DataFrame)::DataFrame
     v = var(A, dims = 1)[1, :]
     idx_cols = findall((abs.(v .- 1) .< 0.00001) .&& .!isnan.(v) .&& .!ismissing.(v) .&& .!isinf.(v))
     A = A[:, idx_cols]
-    M = fit(PCA, A; maxoutdim = 2)
+    M = fit(PCA, A'; maxoutdim = 2)
+    # M = fit(PCA, A')
+    Y = predict(M, A')
     vec_missing::Vector{Union{Missing,Float64}} = repeat([missing], size(df, 1))
     df.pc1 = deepcopy(vec_missing)
     df.pc2 = deepcopy(vec_missing)
-    df[!, :pc1] = M.proj[:, 1]
-    df[!, :pc2] = M.proj[:, 2]
-    df
+    # df[!, :pc1] = M.proj[:, 1]
+    # df[!, :pc2] = M.proj[:, 2]
+    df[!, :pc1] = Y[1, :]
+    df[!, :pc2] = Y[2, :]
+    (df, loadings(M))
 end
 
 """
@@ -553,7 +558,7 @@ histograms for both x and y dimensions. Updates correlation coefficient dynamica
 # Returns
 Nothing, modifies the input axes in place.
 """
-function scatterplotinteractive!(
+function GenomicBreedingInteractivePlots.scatterplotinteractive!(
     X::Observable,
     Y::Observable,
     ρ::Observable,
@@ -561,10 +566,12 @@ function scatterplotinteractive!(
     plot_hist_x::Axis,
     plot_hist_y::Axis;
     df::DataFrame,
+    loadings::Matrix,
     traits::Vector{String},
 )
     populations = sort(unique(df.populations))
     for pop in populations
+        # pop = populations[1]
         idx = findall(df.populations .== pop)
         x = @lift($X[idx])
         y = @lift($Y[idx])
@@ -575,8 +582,39 @@ function scatterplotinteractive!(
             x,
             y,
             label = string(pop, " (n=", length(idx), ")"),
-            inspector_label = (self, i, p) -> string(df.entries[idx][i], "\n(", df.populations[idx][i], ")"),
+            inspector_label = (self, i, p) -> string(df.entries[idx][i], "\n", join([string(names(df)[j], ": ", x) for (j, x) in enumerate(df[idx[i], :])], "\n")),
         )
+    end
+    # Add loadings of the original traits into the new coordinate system
+    if (X.val == df[!, "pc1"]) && (Y.val == df[!, "pc2"])
+        for (i, trait) in enumerate(filter(x -> (x != "pc1") && (x != "pc2"), traits))
+            GLMakie.lines!(
+                plot_scatter,
+                [0.0, loadings[i, 1]],
+                [0.0, loadings[i, 2]],
+            )
+            GLMakie.text!(
+                plot_scatter,
+                loadings[i, 1],
+                loadings[i, 2],
+                text=trait,
+            )
+        end
+    end
+    if (X.val == df[!, "pc2"]) && (Y.val == df[!, "pc1"])
+        for (i, trait) in enumerate(traits)
+            GLMakie.lines!(
+                plot_scatter,
+                [0.0, loadings[i, 2]],
+                [0.0, loadings[i, 1]],
+            )
+            GLMakie.text!(
+                plot_scatter,
+                loadings[i, 2],
+                loadings[i, 1],
+                text=trait,
+            )
+        end
     end
     GLMakie.hidedecorations!(plot_hist_x, grid = false)
     GLMakie.hidedecorations!(plot_hist_y, grid = false)
@@ -657,7 +695,7 @@ function plotinteractive2d(
         impute = impute,
     )
     # Extract the first 2 principal components
-    df = addpc1pc2(df)
+    df, L = addpc1pc2(df)
     # Include the 2 PCs in the list of traits and sort alphabetically
     traits = names(df)
     traits = traits[isnothing.(match.(Regex("id|entries|populations", "i"), traits))]
@@ -686,7 +724,17 @@ function plotinteractive2d(
     # Plot the scatter plot with histograms
     X = Observable{Any}(df[!, default_trait_x])
     Y = Observable{Any}(df[!, default_trait_y])
-    scatterplotinteractive!(X, Y, ρ, plot_scatter, plot_hist_x, plot_hist_y, df = df, traits = traits)
+    scatterplotinteractive!(
+        X, 
+        Y, 
+        ρ, 
+        plot_scatter, 
+        plot_hist_x, 
+        plot_hist_y, 
+        df=df, 
+        loadings=L,
+        traits=traits
+    )
     # Add the legend
     leg = Legend(fig_main[1, 2], plot_scatter)
     leg.tellheight = true
